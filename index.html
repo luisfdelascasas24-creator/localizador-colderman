@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Localizador de Productos · Colderman</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>" />
+
+<!-- Tailwind (sin build step) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React + Babel (para poder usar JSX sin build step) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+
+<!-- Firebase (App + Firestore) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+<style>
+  html, body { height: 100%; }
+  body { margin: 0; background: #fafafa; }
+</style>
+</head>
+<body>
+
+<div id="root">
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#999;font-family:sans-serif;font-size:14px;">
+    Cargando...
+  </div>
+</div>
+
+<!--
+  ============================================================
+  CONFIGURACION DE FIREBASE
+  ============================================================
+  Reemplaza estos valores por los de TU proyecto de Firebase:
+  Firebase Console -> Configuracion del proyecto -> Tus apps -> Config
+-->
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAw5ZV9I8CbXD10XnQOiqxBA9hmdL2ktwI",
+    authDomain: "localizador-colderman.firebaseapp.com",
+    projectId: "localizador-colderman",
+    storageBucket: "localizador-colderman.firebasestorage.app",
+    messagingSenderId: "538350118436",
+    appId: "1:538350118436:web:23333dd6edccdd913b1ab1",
+  };
+  firebase.initializeApp(firebaseConfig);
+</script>
+
+<!-- La app (JSX transformado en el navegador por Babel) -->
+<script type="text/babel" src="app.js"></script>
+
+</body>
+</html>
