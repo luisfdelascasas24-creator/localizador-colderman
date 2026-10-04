@@ -1030,8 +1030,8 @@ function CompressorLocator() {
           <h1 className="text-base font-semibold tracking-tight">Localizador de Productos</h1>
         </div>
         <p className="text-xs text-neutral-400 mb-3">
-          Colderman · varias bodegas · datos compartidos
-          {stockDate ? ` · stock al ${stockDate}` : ""}
+          Colderman · Bodegas
+          {stockDate ? ` · Catálogo actualizado el ${stockDate}` : ""}
         </p>
         <div className="relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
