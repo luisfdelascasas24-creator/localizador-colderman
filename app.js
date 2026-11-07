@@ -813,66 +813,93 @@ function CompressorLocator() {
     })();
   }, []);
 
+  // --- Ubicaciones: un documento por producto en la coleccion "ubicaciones" ---
+  // Sincronizacion en vivo (onSnapshot): nadie guarda una copia vieja encima de otra,
+  // y la lista inicial solo agrega codigos que nunca existieron (no revive lo movido/quitado).
   useEffect(() => {
-    (async () => {
-      let current = null;
-      try {
-        const result = await storageGet(STORAGE_KEY);
-        current = result && result.value ? JSON.parse(result.value) : null;
-      } catch (e) {
-        current = null;
-      }
+    let seeded = false;
+    const col = db.collection("ubicaciones");
+    const unsub = col.onSnapshot(
+      { includeMetadataChanges: false },
+      async (snap) => {
+        const obj = {};
+        const known = new Set();
+        snap.forEach((d) => {
+          known.add(d.id);
+          const sectors = (d.data().sectors || []).filter(Boolean);
+          if (sectors.length) obj[d.id] = sectors;
+        });
+        dataRef.current = obj;
+        setData(obj);
+        setLoading(false);
 
-      let seedVersion = 0;
-      try {
-        const meta = await storageGet(META_KEY);
-        if (meta && meta.value) seedVersion = JSON.parse(meta.value).seedVersion || 0;
-      } catch (e) {
-        seedVersion = 0;
-      }
-
-      if (!current) {
-        current = { ...SEED_DATA };
-        seedVersion = 0;
-      }
-
-      if (seedVersion < SEED_VERSION) {
-        const merged = { ...current };
-        Object.entries(CODE_RENAMES).forEach(([oldCode, newCode]) => {
-          if (merged[oldCode]) {
-            const combined = new Set([...(merged[newCode] || []), ...merged[oldCode]]);
-            merged[newCode] = Array.from(combined);
-            delete merged[oldCode];
+        if (!seeded && !snap.metadata.fromCache) {
+          seeded = true;
+          const toWrite = {};
+          // Migracion unica desde el bloque antiguo (si existe y aun no hay documentos)
+          if (known.size === 0) {
+            try {
+              const old = await storageGet(STORAGE_KEY);
+              if (old && old.value) {
+                const blob = JSON.parse(old.value);
+                Object.entries(blob).forEach(([c, sec]) => {
+                  const code = CODE_RENAMES[c] || c;
+                  toWrite[code] = Array.from(new Set([...(toWrite[code] || []), ...sec]));
+                });
+              }
+            } catch (e) {}
           }
-        });
-        Object.entries(SEED_DATA).forEach(([code, sectors]) => {
-          const existing = new Set(merged[code] || []);
-          sectors.forEach((s) => existing.add(s));
-          merged[code] = Array.from(existing);
-        });
-        current = merged;
-        try {
-          await storageSet(STORAGE_KEY, JSON.stringify(current));
-          await storageSet(META_KEY, JSON.stringify({ seedVersion: SEED_VERSION }));
-        } catch (e) {}
+          Object.entries(toWrite).forEach(([c]) => known.add(c));
+          Object.entries(SEED_DATA).forEach(([c, sec]) => {
+            if (!known.has(c)) toWrite[c] = sec;
+          });
+          const entries = Object.entries(toWrite);
+          for (let i = 0; i < entries.length; i += 400) {
+            const batch = db.batch();
+            entries.slice(i, i + 400).forEach(([c, sec]) => {
+              batch.set(col.doc(c), {
+                sectors: sec,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              });
+            });
+            try { await batch.commit(); } catch (e) { console.error("seed error", e); }
+          }
+        }
+      },
+      (err) => {
+        console.error("snapshot error", err);
+        setFlash("Sin conexion con la base de datos. Recarga la pagina.");
+        setLoading(false);
       }
-
-      setData(current);
-      setLoading(false);
-    })();
+    );
+    return () => unsub();
   }, []);
 
+  // Escribe solo los productos que cambiaron (si queda sin sectores se guarda lista vacia,
+  // no se borra el documento, para que la lista inicial no lo reviva).
   function persist(next) {
-    setData(next);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      try {
-        await storageSet(STORAGE_KEY, JSON.stringify(next));
-      } catch (e) {
-        setFlash("No se pudo guardar. Revisa tu conexion.");
-        setTimeout(() => setFlash(""), 3000);
+    const prev = dataRef.current || {};
+    const codes = new Set([...Object.keys(prev), ...Object.keys(next)]);
+    const batch = db.batch();
+    let n = 0;
+    codes.forEach((c) => {
+      const a = (prev[c] || []).slice().sort().join("|");
+      const b = (next[c] || []).slice().sort().join("|");
+      if (a !== b) {
+        batch.set(db.collection("ubicaciones").doc(c), {
+          sectors: next[c] || [],
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        n++;
       }
-    }, 250);
+    });
+    dataRef.current = next;
+    setData(next);
+    if (!n) return;
+    batch.commit().catch(() => {
+      setFlash("No se pudo guardar. Revisa tu conexion.");
+      setTimeout(() => setFlash(""), 3000);
+    });
   }
 
   useEffect(() => {
@@ -1030,8 +1057,8 @@ function CompressorLocator() {
           <h1 className="text-base font-semibold tracking-tight">Localizador de Productos</h1>
         </div>
         <p className="text-xs text-neutral-400 mb-3">
-          Colderman · Bodegas
-          {stockDate ? ` · Catálogo actualizado el ${stockDate}` : ""}
+          Colderman · varias bodegas · datos compartidos
+          {stockDate ? ` · stock al ${stockDate}` : ""}
         </p>
         <div className="relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
